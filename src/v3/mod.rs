@@ -1,15 +1,16 @@
-use http::StatusCode as HttpStatusCode;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::num::{NonZeroU16, NonZeroU32};
+use std::num::NonZeroU32;
 use url::Url;
-
-use crate::utils::default_true;
 
 pub type SecurityRequirementObject = IndexMap<String, Vec<String>>;
 pub type CallbackObject = IndexMap<String, PathsItemObject>;
+/// Holds the relative paths to the individual endpoints and their operations. The path is appended to the URL from the [Server Object](ServerObject) in order to construct the full URL. The Paths MAY be empty, due to [ACL constraints](https://spec.openapis.org/oas/v3.0.3#securityFiltering).
+pub type PathsObject = IndexMap<String, ReferenceObjectOr<PathsItemObject>>; // TODO: Specification Extensions. // TODO: better implement this object
 
+// TODO: It might me a better idea, even if more complicated, to drop this enum and implement ref for some objects.
+// That way it would better documented and more comformant to the spec
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ReferenceObjectOr<T> {
@@ -27,8 +28,10 @@ pub struct OpenAPIObject {
     pub openapi: String,
     /// Provides metadata about the API. The metadata MAY be used by tooling as required.
     pub info: InfoObject,
-    pub servers: Vec<ServerObject>,
-    pub paths: IndexMap<String, ReferenceObjectOr<PathsItemObject>>,
+    /// An array of Server Objects, which provide connectivity information to a target server. If the servers property is not provided, or is an empty array, the default value would be a Server Object with a url value of /.
+    pub servers: Vec<ServerObject>, // TODO: add default value
+    /// The available paths and operations for the API.
+    pub paths: PathsObject,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub components: Option<ComponentsObject>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -38,6 +41,7 @@ pub struct OpenAPIObject {
     /// Additional external documentation.
     #[serde(rename = "externalDocs", skip_serializing_if = "Option::is_none")]
     pub external_docs: Option<ExternalDocumentationObject>,
+    // TODO: Specification Extensions.
 }
 
 /// The object provides metadata about the API. The metadata MAY be used by the clients if needed, and MAY be presented in editing or documentation generation tools for convenience.
@@ -88,73 +92,106 @@ pub struct LicenseObject {
     // TODO: Specification Extensions.
 }
 
+/// An object representing a Server.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ServerObject {
+    /// A URL to the target host. This URL supports Server Variables and MAY be relative, to indicate that the host location is relative to the location where the OpenAPI document is being served. Variable substitutions will be made when a variable is named in {brackets}.
     pub url: String,
+    /// An optional string describing the host designated by the URL. [CommonMark syntax](https://spec.commonmark.org/) be used for rich text representation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// A map between a variable name and its value. The value is used for substitution in the server's URL template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variables: Option<IndexMap<String, ServerVariableObject>>,
+    // TODO: Specification Extensions.
 }
 
+/// An object representing a Server Variable for server URL template substitution.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ServerVariableObject {
-    pub enumeration: Vec<String>,
+    /// An enumeration of string values to be used if the substitution options are from a limited set. The array SHOULD NOT be empty.
+    #[serde(rename = "enum")]
+    pub enumeration: Vec<String>, // TODO: ensure it's not empty
+    /// The default value to use for substitution, which SHALL be sent if an alternate value is not supplied. Note this behavior is different than the [Schema Object's](SchemaObject) treatment of default values, because in those cases parameter values are optional. If the enum is defined, the value SHOULD exist in the enum's values.
     pub default: String,
+    /// An optional description for the server variable. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
     pub description: String,
+    // TODO: Specification Extensions.
 }
 
+/// Describes the operations available on a single path. A Path Item MAY be empty, due to ACL constraints. The path itself is still exposed to the documentation viewer but they will not know which operations and parameters are available.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PathsItemObject {
+    /// An optional, string summary, intended to apply to all operations in this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    /// An optional, string description, intended to apply to all operations in this path. CommonMark syntax MAY be used for rich text representation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// A definition of a GET operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub get: Option<OperationObject>,
+    /// A definition of a PUT operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub put: Option<OperationObject>,
+    /// A definition of a POST operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post: Option<OperationObject>,
+    /// A definition of a DELETE operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub delete: Option<OperationObject>,
+    /// A definition of a OPTIONS operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<OperationObject>,
+    /// A definition of a HEAD operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub head: Option<OperationObject>,
+    /// A definition of a PATCH operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub patch: Option<OperationObject>,
+    /// A definition of a TRACE operation on this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace: Option<OperationObject>,
+    /// An alternative server array to service all operations in this path.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub servers: Option<Vec<ServerObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<ReferenceObjectOr<ParameterObject>>>,
+    // TODO: Specification Extensions.
 }
 
+/// Describes a single API operation on a path.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OperationObject {
+    /// A list of tags for API documentation control. Tags can be used for logical grouping of operations by resources or any other qualifier.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
+    /// A short summary of what the operation does.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
+    /// A verbose explanation of the operation behavior. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Additional external documentation for this operation.
     #[serde(rename = "externalDocs", skip_serializing_if = "Option::is_none")]
     pub external_docs: Option<ExternalDocumentationObject>,
+    /// Unique string used to identify the operation. The id MUST be unique among all operations described in the API. The operationId value is case-sensitive. Tools and libraries MAY use the operationId to uniquely identify an operation, therefore, it is RECOMMENDED to follow common programming naming conventions.
     #[serde(rename = "operationId", skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<ReferenceObjectOr<ParameterObject>>>,
+    /// The request body applicable for this operation. The requestBody is only supported in HTTP methods where the HTTP 1.1 specification [RFC7231](https://tools.ietf.org/html/rfc7231#section-4.3.1) has explicitly defined semantics for request bodies. In other cases where the HTTP spec is vague, requestBody SHALL be ignored by consumers.
     #[serde(rename = "requestBody", skip_serializing_if = "Option::is_none")]
     pub request_body: Option<ReferenceObjectOr<RequestBodyObject>>,
     pub responses: ResponsesObject,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callbacks: Option<IndexMap<String, ReferenceObjectOr<CallbackObject>>>,
+    /// Declares this operation to be deprecated. Consumers SHOULD refrain from usage of the declared operation.
     #[serde(default)]
     pub deprecated: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub security: Option<Vec<SecurityRequirementObject>>,
+    /// An alternative server array to service this operation. If an alternative server object is specified at the Path Item Object or Root level, it will be overridden by this value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub servers: Option<Vec<ServerObject>>,
 }
@@ -211,6 +248,8 @@ pub struct ParameterObjectFixedFields {
     pub examples: Option<IndexMap<String, ExampleObject>>,
 }
 
+/// The Schema Object allows the definition of input and output data types. These types can be objects, but also primitives and arrays. This object is an extended subset of the [JSON Schema Specification Wright Draft 00](https://json-schema.org/).
+/// For more information about the properties, see [JSON Schema Core](https://tools.ietf.org/html/draft-wright-json-schema-00) and [JSON Schema Validation](https://tools.ietf.org/html/draft-wright-json-schema-validation-00). Unless stated otherwise, the property definitions follow the JSON Schema.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SchemaObject {
     // This are all fixed fields
@@ -275,8 +314,10 @@ pub struct XmlObject {
     pub wrapped: bool,
 }
 
+/// Each Media Type Object provides schema and examples for the media type identified by its key.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct MediaTypeObject {
+    /// The schema defining the content of the request, response, or parameter.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schema: Option<ReferenceObjectOr<SchemaObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -319,11 +360,15 @@ pub struct ExampleObject {
     pub external_value: Option<String>,
 }
 
+/// Describes a single request body.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RequestBodyObject {
+    /// A brief description of the request body. This could contain examples of use. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// The content of the request body. The key is a media type or [media type range](https://tools.ietf.org/html/rfc7231#appendix-D) and the value describes it. For requests that match multiple keys, only the most specific key is applicable. e.g. text/plain overrides text/*
     pub content: IndexMap<String, MediaTypeObject>,
+    /// Determines if the request body is required in the request.
     #[serde(default)]
     pub required: bool,
 }
