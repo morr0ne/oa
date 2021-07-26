@@ -4,6 +4,9 @@ use serde_json::Value;
 use std::num::NonZeroU32;
 use url::Url;
 
+/// Lists the required security schemes to execute this operation. The name used for each property MUST correspond to a security scheme declared in the [Security Schemes](https://spec.openapis.org/oas/v3.0.3#componentsSecuritySchemes) under the [Components Object](ComponentsObject).
+/// Security Requirement Objects that contain multiple schemes require that all schemes MUST be satisfied for a request to be authorized. This enables support for scenarios where multiple query parameters or HTTP headers are required to convey security information.
+/// When a list of Security Requirement Objects is defined on the [OpenAPI Object](OpenAPIObject) or [Operation Object](OperationObject), only one of the Security Requirement Objects in the list needs to be satisfied to authorize the request.
 pub type SecurityRequirementObject = IndexMap<String, Vec<String>>;
 pub type CallbackObject = IndexMap<String, PathsItemObject>;
 /// Holds the relative paths to the individual endpoints and their operations. The path is appended to the URL from the [Server Object](ServerObject) in order to construct the full URL. The Paths MAY be empty, due to [ACL constraints](https://spec.openapis.org/oas/v3.0.3#securityFiltering).
@@ -32,10 +35,13 @@ pub struct OpenAPIObject {
     pub servers: Vec<ServerObject>, // TODO: add default value
     /// The available paths and operations for the API.
     pub paths: PathsObject,
+    /// An element to hold various schemas for the specification.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub components: Option<ComponentsObject>,
+    /// A declaration of which security mechanisms can be used across the API. The list of values includes alternative security requirement objects that can be used. Only one of the security requirement objects need to be satisfied to authorize a request. Individual operations can override this definition. To make security optional, an empty security requirement ({}) can be included in the array.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub security: Option<Vec<SecurityRequirementObject>>,
+    /// A list of tags used by the specification with additional metadata. The order of the tags can be used to reflect on their order by the parsing tools. Not all tags that are used by the [Operation Object](OperationObject) must be declared. The tags that are not declared MAY be organized randomly or based on the tools' logic. Each tag name in the list MUST be unique.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<TagObject>>,
     /// Additional external documentation.
@@ -194,6 +200,7 @@ pub struct OperationObject {
     /// An alternative server array to service this operation. If an alternative server object is specified at the Path Item Object or Root level, it will be overridden by this value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub servers: Option<Vec<ServerObject>>,
+    // TODO: Specification Extensions.
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -418,10 +425,88 @@ pub struct ComponentsObject {
     #[serde(rename = "requestBodies", skip_serializing_if = "Option::is_none")]
     pub request_bodies: Option<IndexMap<String, ReferenceObjectOr<RequestBodyObject>>>,
     // TODO:  headers
-    // TODO:  securitySchemes
+    /// An object to hold reusable [Security Scheme Objects](SecuritySchemeObject).
+    #[serde(rename = "securitySchemes")]
+    pub security_schemes: IndexMap<String, ReferenceObjectOr<SecuritySchemeObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<IndexMap<String, ReferenceObjectOr<LinkObject>>>,
     // TODO: callbacks
+    // TODO: Specification Extensions.
+
+    // TODO
+}
+
+/// Defines a security scheme that can be used by the operations. Supported schemes are HTTP authentication, an API key (either as a header, a cookie parameter or as a query parameter), OAuth2's common flows (implicit, password, client credentials and authorization code) as defined in [RFC6749](https://tools.ietf.org/html/rfc6749), and [OpenID Connect Discovery](https://tools.ietf.org/html/draft-ietf-oauth-discovery-06).
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(tag = "type")]
+pub enum SecuritySchemeObject {
+    #[serde(rename = "apiKey")]
+    ApiKey {
+        /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        description: Option<String>,
+        /// The name of the header, query or cookie parameter to be used.
+        name: String,
+        /// The location of the API key
+        #[serde(rename = "in")]
+        location: ApiKeyLocation,
+    },
+    #[serde(rename = "http")]
+    Http {
+        /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        description: Option<String>,
+        /// The name of the HTTP Authorization scheme to be used in the [Authorization header as defined in RFC7235](https://tools.ietf.org/html/rfc7235#section-5.1). The values used SHOULD be registered in the [IANA Authentication Scheme registry](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml).
+        scheme: String,
+        /// A hint to the client to identify how the bearer token is formatted. Bearer tokens are usually generated by an authorization server, so this information is primarily for documentation purposes.
+        #[serde(rename = "bearerFormat")]
+        bearer_format: Option<String>,
+    },
+    #[serde(rename = "oauth2")]
+    Oauth2 {
+        /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        description: Option<String>,
+        /// An object containing configuration information for the flow types supported.
+        flows: OAuthFlowsObject,
+    },
+    #[serde(rename = "openIdConnect")]
+    OpenIdConnect {
+        /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        description: Option<String>,
+        /// OpenId Connect URL to discover OAuth2 configuration values.
+        #[serde(rename = "openIdConnectUrl")]
+        open_id_connect_url: Url,
+    },
+    // TODO: Specification Extensions.
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum ApiKeyLocation {
+    #[serde(rename = "query")]
+    Query,
+    #[serde(rename = "header")]
+    Header,
+    #[serde(rename = "cookie")]
+    Cookie,
+}
+
+/// Allows configuration of the supported OAuth Flows.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OAuthFlowsObject {
+    /// Configuration for the OAuth Implicit flow
+    pub implicit: Option<OAuthFlowObject>,
+    /// Configuration for the OAuth Resource Owner Password flow
+    pub password: Option<OAuthFlowObject>,
+    /// Configuration for the OAuth Client Credentials flow. Previously called `application` in OpenAPI 2.0.
+    #[serde(rename = "clientCredentials")]
+    pub client_credentials: Option<OAuthFlowObject>,
+    /// Configuration for the OAuth Authorization Code flow. Previously called `accessCode` in OpenAPI 2.0.
+    #[serde(rename = "authorizationCode")]
+    pub authorization_code: Option<OAuthFlowObject>,
+    // TODO: Specification Extensions.
+}
+
+/// Configuration details for a supported OAuth Flow
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OAuthFlowObject {
     // TODO
 }
 
