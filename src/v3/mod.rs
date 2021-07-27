@@ -11,6 +11,7 @@ pub type SecurityRequirementObject = IndexMap<String, Vec<String>>;
 pub type CallbackObject = IndexMap<String, PathsItemObject>;
 /// Holds the relative paths to the individual endpoints and their operations. The path is appended to the URL from the [Server Object](ServerObject) in order to construct the full URL. The Paths MAY be empty, due to [ACL constraints](https://spec.openapis.org/oas/v3.0.3#securityFiltering).
 pub type PathsObject = IndexMap<String, ReferenceObjectOr<PathsItemObject>>; // TODO: Specification Extensions. // TODO: better implement this object
+pub type Extensions = IndexMap<String, Value>;
 
 // TODO: It might me a better idea, even if more complicated, to drop this enum and implement ref for some objects.
 // That way it would better documented and more comformant to the spec
@@ -47,7 +48,8 @@ pub struct OpenAPIObject {
     /// Additional external documentation.
     #[serde(rename = "externalDocs", skip_serializing_if = "Option::is_none")]
     pub external_docs: Option<ExternalDocumentationObject>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// The object provides metadata about the API. The metadata MAY be used by the clients if needed, and MAY be presented in editing or documentation generation tools for convenience.
@@ -69,7 +71,8 @@ pub struct InfoObject {
     pub license: Option<LicenseObject>,
     /// The version of the OpenAPI document (which is distinct from the [OpenAPI Specification version](https://spec.openapis.org/oas/v3.0.3#oasVersion) or the API implementation version).
     pub version: String,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// Contact information for the exposed API.
@@ -84,7 +87,8 @@ pub struct ContactObject {
     /// The email address of the contact person/organization. MUST be in the format of an email address.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// License information for the exposed API.
@@ -95,7 +99,8 @@ pub struct LicenseObject {
     /// A URL to the license used for the API.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<Url>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// An object representing a Server.
@@ -109,7 +114,8 @@ pub struct ServerObject {
     /// A map between a variable name and its value. The value is used for substitution in the server's URL template.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variables: Option<IndexMap<String, ServerVariableObject>>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// An object representing a Server Variable for server URL template substitution.
@@ -122,7 +128,8 @@ pub struct ServerVariableObject {
     pub default: String,
     /// An optional description for the server variable. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
     pub description: String,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// Describes the operations available on a single path. A Path Item MAY be empty, due to ACL constraints. The path itself is still exposed to the documentation viewer but they will not know which operations and parameters are available.
@@ -163,7 +170,8 @@ pub struct PathsItemObject {
     pub servers: Option<Vec<ServerObject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parameters: Option<Vec<ReferenceObjectOr<ParameterObject>>>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// Describes a single API operation on a path.
@@ -200,7 +208,8 @@ pub struct OperationObject {
     /// An alternative server array to service this operation. If an alternative server object is specified at the Path Item Object or Root level, it will be overridden by this value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub servers: Option<Vec<ServerObject>>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -431,8 +440,8 @@ pub struct ComponentsObject {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<IndexMap<String, ReferenceObjectOr<LinkObject>>>,
     // TODO: callbacks
-    // TODO: Specification Extensions.
-
+    #[serde(flatten)]
+    pub extensions: Extensions,
     // TODO
 }
 
@@ -443,6 +452,7 @@ pub enum SecuritySchemeObject {
     #[serde(rename = "apiKey")]
     ApiKey {
         /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
         /// The name of the header, query or cookie parameter to be used.
         name: String,
@@ -453,16 +463,18 @@ pub enum SecuritySchemeObject {
     #[serde(rename = "http")]
     Http {
         /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
         /// The name of the HTTP Authorization scheme to be used in the [Authorization header as defined in RFC7235](https://tools.ietf.org/html/rfc7235#section-5.1). The values used SHOULD be registered in the [IANA Authentication Scheme registry](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml).
         scheme: String,
         /// A hint to the client to identify how the bearer token is formatted. Bearer tokens are usually generated by an authorization server, so this information is primarily for documentation purposes.
-        #[serde(rename = "bearerFormat")]
+        #[serde(rename = "bearerFormat", skip_serializing_if = "Option::is_none")]
         bearer_format: Option<String>,
     },
     #[serde(rename = "oauth2")]
     Oauth2 {
         /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
         /// An object containing configuration information for the flow types supported.
         flows: OAuthFlowsObject,
@@ -470,6 +482,7 @@ pub enum SecuritySchemeObject {
     #[serde(rename = "openIdConnect")]
     OpenIdConnect {
         /// A short description for security scheme. [CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.
+        #[serde(skip_serializing_if = "Option::is_none")]
         description: Option<String>,
         /// OpenId Connect URL to discover OAuth2 configuration values.
         #[serde(rename = "openIdConnectUrl")]
@@ -501,7 +514,8 @@ pub struct OAuthFlowsObject {
     /// Configuration for the OAuth Authorization Code flow. Previously called `accessCode` in OpenAPI 2.0.
     #[serde(rename = "authorizationCode")]
     pub authorization_code: Option<OAuthFlowObject>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// Configuration details for a supported OAuth Flow
@@ -521,7 +535,8 @@ pub struct TagObject {
     /// Additional external documentation for this tag.
     #[serde(rename = "externalDocs", skip_serializing_if = "Option::is_none")]
     pub external_docs: Option<ExternalDocumentationObject>,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
 
 /// Allows referencing an external resource for extended documentation.
@@ -532,5 +547,6 @@ pub struct ExternalDocumentationObject {
     pub description: Option<String>,
     /// The URL for the target documentation.
     pub url: Url,
-    // TODO: Specification Extensions.
+    #[serde(flatten)]
+    pub extensions: Extensions,
 }
