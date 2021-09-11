@@ -1,5 +1,5 @@
 use anyhow::Result;
-use oa::OpenAPIObject;
+use oa::v3::OpenAPIObject;
 use std::fs;
 
 fn main() -> Result<()> {
