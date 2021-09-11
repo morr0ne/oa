@@ -15,10 +15,10 @@ pub struct OpenAPIObject {
     /// An array of Server Objects, which provide connectivity information to a target server. If the servers property is not provided, or is an empty array, the default value would be a Server Object with a url value of /.
     pub servers: Vec<ServerObject>, // TODO: add custom deserialization
     /// The available paths and operations for the API.
-    pub paths: PathsObject, // TODO
+    pub paths: PathsObject,
     /// An element to hold various schemas for the specification.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub components: Option<ComponentsObject>, // TODO
+    pub components: Option<ComponentsObject>,
     /// A declaration of which security mechanisms can be used across the API. The list of values includes alternative security requirement objects that can be used. Only one of the security requirement objects need to be satisfied to authorize a request. Individual operations can override this definition. To make security optional, an empty security requirement ({}) can be included in the array.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub security: Option<Vec<SecurityRequirementObject>>,
